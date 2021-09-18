@@ -1,0 +1,31 @@
+{
+  "name": "canvas-simple-html",
+  "version": "0.1.0",
+  "description": "Render HTML to a canvas.",
+  "main": "index.js",
+  "author": "Rob <basicer@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "devDependencies": {
+    "webpack": "^5.52.1",
+    "webpack-dev-server": "^4.2.0",
+    "canvas-rich-text": "^2.0.0-alpha.1",
+    "canvas-richtext": "basicer/canvas-richtext",
+    "webpack-cli": "^4.8.0"
+  },
+  "dependencies": {
+    "pegjs": "^0.10.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
