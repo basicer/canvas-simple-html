@@ -1,6 +1,7 @@
 let { parse } = require('./parser');
 let { elements, attr2css } = require('./html');
 const parser = require('./parser');
+const DEBUG = false;
 
 function mergeStyles(...parts) {
     let result = { ...parts[0] };
@@ -169,10 +170,11 @@ function applyTextStyle(c, style) {
 
     c.textBaseline = 'alphabetic';
     
+    let was = c.font;
     c.font = f;
 
-    if (c.font !== f)
-        throw new Error(`Invalid font: ${f} vs ${c.font}`);
+    if (DEBUG && c.font !== f)
+        throw new Error(`Invalid font: to- ${f} was- ${was} is- ${c.font}`);
 
     let fill = `${(style['color'] || '#000000').toLowerCase()}`;
     c.fillStyle = fill;
@@ -186,7 +188,7 @@ function applyBackgroundStyle(c, style, prefix = '') {
     c.fillStyle = fill;
 
     if (c.fillStyle !== fill)
-        throw new Error(`Invalid font: ${fill} vs ${c.fillStyle}`);
+        throw new Error(`Invalid fill: ${fill} vs ${c.fillStyle}`);
 
 }
 
