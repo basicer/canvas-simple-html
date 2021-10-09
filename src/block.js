@@ -138,6 +138,21 @@ function renderBlock(els, { x, y, l, r, t, b, style, measure, blocks }, depth = 
                 continue;
             }
 
+            if (e.tag == "path") {
+                let ts = measure('　', cstyle);
+                if (x + ts.width > r) {
+                    brk(cstyle);
+                }
+                emitLine({
+                    text:'　',
+                    path: e.d,
+                    width: e.width ? parseFloat(e.width) : 512,
+                    scale: e.scale ? parseFloat(e.scale) : 1,
+                    x: x - l, y: y + ts.fontBoundingBoxAscent, style: istyle, ts });
+                x += ts.width;
+                continue;
+            }
+
             if (e.children) {
                 let rc = renderBlock(e.children, { x, y, l, r, t, b, style: istyle, measure, blocks }, depth + 1);
                 x = rc.x, y = rc.y;
@@ -231,7 +246,7 @@ function go(html, mc, style, { x, y, width } = { x: 50, y: 50, width: 300 }) {
     for (let b of blocks) {
         if (b.h) maxy = Math.max(maxy, b.y + b.h);
         //cmds.push({x:b.x, y:b.y, w:b.w, h:b.h, style: b.style, type: 'bg'})
-        cmds = cmds.concat(b.c.map(x => ({ ...x, x: x.x + b.x })));
+        cmds = cmds.concat(b.c.map(x => ({ ...x, x: x.x + b.x, h:b.h })));
     }
     
 
@@ -266,7 +281,20 @@ function go(html, mc, style, { x, y, width } = { x: 50, y: 50, width: 300 }) {
                     }
 
                     applyTextStyle(c, cmd.style);
-                    c.fillText(cmd.text, cmd.x, cmd.y);
+
+                    if (cmd.path) {
+                        c.save();
+                        c.translate(cmd.x, cmd.y);
+                        c.translate(0, -cmd.ts.width*0.9 );
+                        c.scale(1/cmd.width*cmd.ts.width, 1/cmd.width*cmd.ts.width);
+                        c.scale(cmd.scale,cmd.scale);
+
+                        //c.scale(1.3, 1.3);
+                        c.fill(new Path2D(cmd.path));
+                        c.restore();
+                    }
+                    else
+                        c.fillText(cmd.text, cmd.x, cmd.y);
 
                     if (cmd.style['text-decoration'] == 'underline') {
                         c.fillRect(cmd.x, cmd.y + cmd.ts.fontBoundingBoxDescent, cmd.ts.width, -1)
