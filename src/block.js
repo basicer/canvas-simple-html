@@ -127,13 +127,16 @@ function renderBlock(els, { x, y, l, r, t, b, style, measure, blocks }, depth = 
                 }
             }
 
+            let yy = y;
+            if (istyle['translate-y']) yy += parseFloat(istyle['translate-y']);
+
             if (e.tag == "hr") {
                 let ts = measure('', cstyle);
                 ts.width = r - x
                 ts.fontBoundingBoxDescent = 5;
                 ts.fontBoundingBoxAscent = 0;
 
-                emitLine({ text: '', x: x - l, y: y, style: istyle, ts });
+                emitLine({ text: '', x: x - l, y: yy, style: istyle, ts });
                 brk(cstyle);
                 continue;
             }
@@ -148,7 +151,7 @@ function renderBlock(els, { x, y, l, r, t, b, style, measure, blocks }, depth = 
                     path: e.d,
                     width: e.width ? parseFloat(e.width) : 512,
                     scale: e.scale ? parseFloat(e.scale) : 1,
-                    x: x - l, y: y + ts.fontBoundingBoxAscent, style: istyle, ts });
+                    x: x - l, y: yy + ts.fontBoundingBoxAscent, style: istyle, ts });
                 x += ts.width;
                 continue;
             }
@@ -160,7 +163,7 @@ function renderBlock(els, { x, y, l, r, t, b, style, measure, blocks }, depth = 
             if (elements[e.tag] && elements[e.tag].display == 'block') {
                 let ts = measure('', cstyle);
                 if (blocks[blocks.length - 1].c.length == 0 ) {
-                    emitLine({ text: '', x: x - l, y: y, style: istyle, ts });
+                    emitLine({ text: '', x: x - l, y: yy, style: istyle, ts });
                 }
                 brk(istyle);
             }
@@ -188,7 +191,7 @@ function applyTextStyle(c, style) {
     let was = c.font;
     c.font = f;
 
-    if (DEBUG && c.font !== f)
+    if (DEBUG && c.font !== f && c.font == was)
         throw new Error(`Invalid font: to- ${f} was- ${was} is- ${c.font}`);
 
     let fill = `${(style['color'] || '#000000').toLowerCase()}`;
@@ -239,8 +242,6 @@ function go(html, mc, style, { x, y, width } = { x: 50, y: 50, width: 300 }) {
 
     blocks = blocks.filter(b => b.c.length > 0);
 
-    console.log(blocks);
-
     let maxy = 0;
     let cmds = [];
     for (let b of blocks) {
@@ -255,8 +256,6 @@ function go(html, mc, style, { x, y, width } = { x: 50, y: 50, width: 300 }) {
             c.strokeStyle = "red";
             c.lineWidth = 1;
 
-
-            console.log("SIZE", width, maxy - y)
             
             if (false) {
                 c.strokeStyle = "blue";
@@ -290,7 +289,10 @@ function go(html, mc, style, { x, y, width } = { x: 50, y: 50, width: 300 }) {
                         c.scale(cmd.scale,cmd.scale);
 
                         //c.scale(1.3, 1.3);
+                        c.lineWidth = cmd.style["line-width"] ? parseFloat(cmd.style["line-width"]) : 1
+                        c.strokeStyle = "#000000"
                         c.fill(new Path2D(cmd.path));
+                        c.stroke(new Path2D(cmd.path));
                         c.restore();
                     }
                     else

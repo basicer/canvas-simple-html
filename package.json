@@ -1,6 +1,6 @@
 {
   "name": "canvas-simple-html",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Render HTML to a canvas.",
   "main": "index.js",
   "author": "Rob <basicer@gmail.com>",
