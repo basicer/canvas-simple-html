@@ -1,177 +1,237 @@
-let { parse } = require('./parser');
-let { elements, attr2css } = require('./html');
-const parser = require('./parser');
+let { parse } = require("./parser");
+let { elements, attr2css } = require("./html");
+const parser = require("./parser");
 const DEBUG = false;
 
 function mergeStyles(...parts) {
-    let result = { ...parts[0] };
+	let result = { ...parts[0] };
 
-    for (let i = 1; i < parts.length; ++i) {
-        for (let k in parts[i]) {
-            let v = parts[i][k];
+	for (let i = 1; i < parts.length; ++i) {
+		for (let k in parts[i]) {
+			let v = parts[i][k];
 
-            if (v == "smaller") v = "0.75em";
+			if (v == "smaller") v = "0.75em";
 
-            let emm = String(v).match(/([0-9.]+)[ ]?(em|pt|px)$/);
-            if (emm) {
-                switch(emm[2]) {
-                    case 'em': result[k] = result['font-size'] * parseFloat(emm[1]); break;
-                    case 'pt': result[k] = (96 * parseFloat(emm[1]) / 72).toFixed(2); break;
-                    case 'px': result[k] = parseFloat(emm[1]); break;
-                }
-                
-                if (isNaN(result[k]))
-                    throw new Error("Its Nan Jim");
+			let emm = String(v).match(/([0-9.]+)[ ]?(em|pt|px)$/);
+			if (emm) {
+				switch (emm[2]) {
+					case "em":
+						result[k] = result["font-size"] * parseFloat(emm[1]);
+						break;
+					case "pt":
+						result[k] = ((96 * parseFloat(emm[1])) / 72).toFixed(2);
+						break;
+					case "px":
+						result[k] = parseFloat(emm[1]);
+						break;
+				}
 
-                continue;
-            }
+				if (isNaN(result[k])) throw new Error("Its Nan Jim");
 
-            result[k] = v;
-        }
-    }
+				continue;
+			}
 
-    return result;
+			result[k] = v;
+		}
+	}
+
+	return result;
 }
 
-let distill = (block, style, {t, l, r}) => {
-    if ( block.h !== undefined ) return;
-    let line = block.c;
-    let extra = 0;
-    let vtop = line.map(o => o.y - o.ts.fontBoundingBoxAscent).reduce((a, b) => a < b ? a : b, Number.MAX_SAFE_INTEGER);
-    let mad = line.map(o => o.ts.fontBoundingBoxAscent).reduce((a, b) => a > b ? a : b, 0);
-    let rmp = line.map(o => o.x + o.ts.width).reduce((a, b) => a > b ? a : b, 0);
-    let bmp = line.map(o => o.y + o.ts.fontBoundingBoxDescent).reduce((a, b) => a > b ? a : b, 0);
+let distill = (block, style, { t, l, r }) => {
+	if (block.h !== undefined) return;
+	let line = block.c;
+	let extra = 0;
+	let vtop = line
+		.map((o) => o.y - o.ts.fontBoundingBoxAscent)
+		.reduce((a, b) => (a < b ? a : b), Number.MAX_SAFE_INTEGER);
+	let mad = line
+		.map((o) => o.ts.fontBoundingBoxAscent)
+		.reduce((a, b) => (a > b ? a : b), 0);
+	let rmp = line
+		.map((o) => o.x + o.ts.width)
+		.reduce((a, b) => (a > b ? a : b), 0);
+	let bmp = line
+		.map((o) => o.y + o.ts.fontBoundingBoxDescent)
+		.reduce((a, b) => (a > b ? a : b), 0);
 
-    block.h = bmp - block.y;
+	block.h = bmp - block.y;
 
-    if (vtop < t) extra = t - vtop;
-    for (let l of line) l.y += extra + mad - l.ts.fontBoundingBoxAscent;
+	if (vtop < t) extra = t - vtop;
+	for (let l of line) l.y += extra + mad - l.ts.fontBoundingBoxAscent;
 
+	if (style["text-align"] == "center") {
+		for (let ln of line) ln.x += (r - l - rmp) / 2;
+	}
+	if (style["text-align"] == "right") {
+		for (let ln of line) ln.x += r - l - rmp;
+	}
+	//line.splice(0, line.length);
+};
 
-    if (style['text-align'] == 'center') {
-        for (let ln of line) ln.x += ((r-l) - rmp) / 2;
-    }
-    if (style['text-align'] == 'right') {
-        for (let ln of line) ln.x += ((r-l) - rmp);
-    }
-    //line.splice(0, line.length);
-}
+function renderBlock(
+	els,
+	{ x, y, l, r, t, b, style, measure, blocks, loadImage },
+	depth = 1,
+) {
+	let mkblock = () => ({ c: [], x: l, y: t, w: r - l });
 
+	if (!blocks) blocks = [mkblock()];
 
+	let cstyle = mergeStyles({ "font-size": 12 }, style);
+	let base = measure("m", cstyle);
+	let emitLine = (el) => blocks[blocks.length - 1].c.push(el);
+	let brk = (style) => {
+		let extra = 0;
+		let line = blocks[blocks.length - 1].c;
+		let mlh = line
+			.map((o) => o.ts.fontBoundingBoxAscent + o.ts.fontBoundingBoxDescent)
+			.reduce((a, b) => (a > b ? a : b), 0);
 
-function renderBlock(els, { x, y, l, r, t, b, style, measure, blocks }, depth = 1) {
-    let mkblock = () => ({ c: [], x: l, y: t, w: r - l});
+		y += mlh;
+		x = l;
 
-    if (!blocks) blocks = [mkblock()];
+		distill(blocks[blocks.length - 1], style, { t, r, l });
 
-    let cstyle = mergeStyles({ 'font-size': 12}, style);
-    let base = measure('m', cstyle);
-    let emitLine = (el) => blocks[blocks.length - 1].c.push(el);
-    let brk = (style) => { 
-        let extra = 0;
-        let line = blocks[blocks.length - 1].c;
-        let mlh = line.map(o => o.ts.fontBoundingBoxAscent + o.ts.fontBoundingBoxDescent).reduce((a, b) => a > b ? a : b, 0);
+		y += extra;
+		t += extra + mlh;
+		blocks.push(mkblock());
+	};
 
+	for (let e of els) {
+		if (typeof e === "string") {
+			let ts = measure(e, cstyle);
+			if (x + ts.width > r) {
+				brk(cstyle);
+			}
+			//Collapse beginning of line whitespace
+			if (x == l && /^[ \n]+$/.test(e)) continue;
+			let el = {
+				text: e,
+				x: x - l,
+				y: y + ts.fontBoundingBoxAscent,
+				style: cstyle,
+				ts,
+			};
+			emitLine(el);
 
-        y += mlh;
-        x = l;
+			x += ts.width;
+		} else {
+			if (e.tag == "br") {
+				let ts = measure(" ", cstyle);
+				let el = {
+					text: "\n",
+					x: x - l,
+					y: y + ts.fontBoundingBoxAscent,
+					style: cstyle,
+					ts,
+				};
+				emitLine(el);
+				brk(cstyle);
+				continue;
+			}
+			if (e.tag == "img") {
+				let img = loadImage ? loadImage(e.src) : e.src;
+				let ts = measure(" ", cstyle);
+				let height = ts.fontBoundingBoxAscent;
+				if (e.height) height = parseFloat(e.height);
+				let width = height;
+				if (e.width) width = parseFloat(e.width);
+				let offset = ts.fontBoundingBoxAscent;
+				ts.fontBoundingBoxDescent = 0;
+				ts.fontBoundingBoxAscent = height;
 
-        distill(blocks[blocks.length - 1], style, {t, r, l})
+				let el = {
+					img: img,
+					x: x - l,
+					y: y + Math.max(offset, height),
+					style: cstyle,
+					ts,
+					width,
+					height,
+				};
+				emitLine(el);
+				x += width;
+				//y += height;
+				//brk(cstyle);
+				continue;
+			}
 
-        y += extra;
-        t += extra + mlh;
-        blocks.push(mkblock());
-    };
+			if (elements[e.tag] && elements[e.tag].display == "block") {
+				if (x > l) brk(cstyle);
+			}
 
+			let ds = {};
+			for (let k in e) {
+				if (k === "childern" || k === "tag") continue;
+				if (attr2css[k]) Object.assign(ds, attr2css[k](e[k]));
+				if (attr2css[`${e.tag}:${k}`])
+					Object.assign(ds, attr2css[`${e.tag}:${k}`](e[k]));
+			}
 
+			let istyle = mergeStyles(cstyle, elements[e.tag], ds);
 
-    for (let e of els) {
-        if (typeof (e) === "string") {
-            let ts = measure(e, cstyle);
-            if ( x + ts.width > r ) {
-                brk(cstyle);
-            }
-            //Collapse beginning of line whitespace
-            if (x == l && /^[ \n]+$/.test(e) ) continue;
-            let el = { text: e, x: x - l, y: y + ts.fontBoundingBoxAscent, style: cstyle, ts };
-            emitLine(el);
+			if (e.style) {
+				let r = parser.parse(e.style, { startRule: "style" });
 
-            x += ts.width;
-        } else {
-            if ( e.tag == "br" ) {
-                let ts = measure(' ', cstyle);
-                let el = { text: '\n', x: x - l, y: y + ts.fontBoundingBoxAscent, style: cstyle, ts };
-                emitLine(el);
-                brk(cstyle);
-                continue;
-            }
+				for (let m of Object.entries(r)) {
+					istyle[m[0]] = m[1];
+				}
+			}
 
-            if (elements[e.tag] && elements[e.tag].display == 'block') {
-                if ( x > l ) brk(cstyle);
-            }
+			let yy = y;
+			if (istyle["translate-y"]) yy += parseFloat(istyle["translate-y"]);
 
-            let ds = {};
-            for ( let k in e ) {
-                if ( k === "childern" || k === "tag" ) continue;
-                if (attr2css[k]) Object.assign(ds, attr2css[k](e[k]));
-                if (attr2css[`${e.tag}:${k}`]) Object.assign(ds, attr2css[`${e.tag}:${k}`](e[k]));
-            }
+			if (e.tag == "hr") {
+				let ts = measure("", cstyle);
+				ts.width = r - x;
+				ts.fontBoundingBoxDescent = 5;
+				ts.fontBoundingBoxAscent = 0;
 
-            let istyle = mergeStyles(cstyle, elements[e.tag], ds);
+				emitLine({ text: "", x: x - l, y: yy, style: istyle, ts });
+				brk(cstyle);
+				continue;
+			}
 
-            if ( e.style ) {
-                let r = parser.parse(e.style, {startRule: 'style'});
-                
-                for ( let m of Object.entries(r) ) {
-                    istyle[m[0]] = m[1];
-                }
-            }
+			if (e.tag == "path") {
+				let ts = measure("　", cstyle);
+				if (x + ts.width > r) {
+					brk(cstyle);
+				}
+				emitLine({
+					text: "　",
+					path: e.d,
+					width: e.width ? parseFloat(e.width) : 512,
+					scale: e.scale ? parseFloat(e.scale) : 1,
+					x: x - l,
+					y: yy + ts.fontBoundingBoxAscent,
+					style: istyle,
+					ts,
+				});
+				x += ts.width;
+				continue;
+			}
 
-            let yy = y;
-            if (istyle['translate-y']) yy += parseFloat(istyle['translate-y']);
+			if (e.children) {
+				let rc = renderBlock(
+					e.children,
+					{ x, y, l, r, t, b, style: istyle, measure, blocks, loadImage },
+					depth + 1,
+				);
+				(x = rc.x), (y = rc.y);
+			}
+			if (elements[e.tag] && elements[e.tag].display == "block") {
+				let ts = measure("", cstyle);
+				if (blocks[blocks.length - 1].c.length == 0) {
+					emitLine({ text: "", x: x - l, y: yy, style: istyle, ts });
+				}
+				brk(istyle);
+			}
+		}
+	}
 
-            if (e.tag == "hr") {
-                let ts = measure('', cstyle);
-                ts.width = r - x
-                ts.fontBoundingBoxDescent = 5;
-                ts.fontBoundingBoxAscent = 0;
-
-                emitLine({ text: '', x: x - l, y: yy, style: istyle, ts });
-                brk(cstyle);
-                continue;
-            }
-
-            if (e.tag == "path") {
-                let ts = measure('　', cstyle);
-                if (x + ts.width > r) {
-                    brk(cstyle);
-                }
-                emitLine({
-                    text:'　',
-                    path: e.d,
-                    width: e.width ? parseFloat(e.width) : 512,
-                    scale: e.scale ? parseFloat(e.scale) : 1,
-                    x: x - l, y: yy + ts.fontBoundingBoxAscent, style: istyle, ts });
-                x += ts.width;
-                continue;
-            }
-
-            if (e.children) {
-                let rc = renderBlock(e.children, { x, y, l, r, t, b, style: istyle, measure, blocks }, depth + 1);
-                x = rc.x, y = rc.y;
-            } 
-            if (elements[e.tag] && elements[e.tag].display == 'block') {
-                let ts = measure('', cstyle);
-                if (blocks[blocks.length - 1].c.length == 0 ) {
-                    emitLine({ text: '', x: x - l, y: yy, style: istyle, ts });
-                }
-                brk(istyle);
-            }
-        }
-    }
-
-    if ( depth == 1) distill(blocks[blocks.length - 1], style, { t, r, l });
-    return { x, y, blocks };
+	if (depth == 1) distill(blocks[blocks.length - 1], style, { t, r, l });
+	return { x, y, blocks };
 }
 
 //target.font = `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontStretch} ${style.fontSize} ${style.fontFamily}`;
@@ -179,141 +239,196 @@ function renderBlock(els, { x, y, l, r, t, b, style, measure, blocks }, depth = 
 //target.fillStyle = style.color;
 
 function applyTextStyle(c, style) {
-    let f = [
-        `${style['font-style'] || ''}`,
-        `${style['font-weight'] || ''}`,
-        `${parseFloat(style['font-size']).toFixed(0)}px`,
-        `${style['font-family'] || 'serif'}`,
-    ].filter( x => x).join(' ');
+	let f = [
+		`${style["font-style"] || ""}`,
+		`${style["font-weight"] || ""}`,
+		`${parseFloat(style["font-size"]).toFixed(0)}px`,
+		`${style["font-family"] || "serif"}`,
+	]
+		.filter((x) => x)
+		.join(" ");
 
-    c.textBaseline = 'alphabetic';
-    
-    let was = c.font;
-    c.font = f;
+	c.textBaseline = "alphabetic";
 
-    if (DEBUG && c.font !== f && c.font == was)
-        throw new Error(`Invalid font: to- ${f} was- ${was} is- ${c.font}`);
+	let was = c.font;
+	c.font = f;
 
-    let fill = `${(style['color'] || '#000000').toLowerCase()}`;
-    c.fillStyle = fill;
+	if (DEBUG && c.font !== f && c.font == was)
+		throw new Error(`Invalid font: to- ${f} was- ${was} is- ${c.font}`);
 
-    if (c.fillStyle !== fill)
-        throw new Error(`Invalid fill: ${fill} vs ${c.fillStyle}`);
+	let fill = `${(style["color"] || "#000000").toLowerCase()}`;
+	c.fillStyle = fill;
+
+	if (c.fillStyle !== fill)
+		throw new Error(`Invalid fill: ${fill} vs ${c.fillStyle}`);
 }
 
-function applyBackgroundStyle(c, style, prefix = '') {
-    let fill = `${(style[prefix + '-color'] || 'rgba(0, 0, 0, 0)').toLowerCase()}`;
-    c.fillStyle = fill;
+function applyBackgroundStyle(c, style, prefix = "") {
+	let fill = `${(style[prefix + "-color"] || "rgba(0, 0, 0, 0)").toLowerCase()}`;
+	c.fillStyle = fill;
 
-    if (c.fillStyle !== fill)
-        throw new Error(`Invalid fill: ${fill} vs ${c.fillStyle}`);
-
+	if (c.fillStyle !== fill)
+		throw new Error(`Invalid fill: ${fill} vs ${c.fillStyle}`);
 }
 
-function go(html, mc, style, { x, y, width } = { x: 50, y: 50, width: 300 }) {
-    let parsed = parse(html);
+function go(html, mc, style, { x, y, width, loadImage } = {}) {
+	let parsed = parse(html);
 
-    let { blocks } = renderBlock(parsed, {
-        x: x, y: y, l: x, r: x + width, t: y, b: y+400,
-        style,
-        measure: (text, style) => {
-            applyTextStyle(mc, style);
-            let {
-                actualBoundingBoxAscent,
-                actualBoundingBoxDescent,
-                actualBoundingBoxLeft,
-                actualBoundingBoxRight,
-                fontBoundingBoxAscent,
-                fontBoundingBoxDescent,
-                width
-            } = mc.measureText(text);
+	if (typeof x == "undefined") x = 50;
+	if (typeof y == "undefined") y = 50;
+	if (typeof width == "undefined") width = 300;
 
-            return {
-                actualBoundingBoxAscent,
-                actualBoundingBoxDescent,
-                actualBoundingBoxLeft,
-                actualBoundingBoxRight,
-                fontBoundingBoxAscent,
-                fontBoundingBoxDescent,
-                width
-            };
-        }
-    });
+	let { blocks } = renderBlock(parsed, {
+		x: x,
+		y: y,
+		l: x,
+		r: x + width,
+		t: y,
+		b: y + 400,
+		style,
+		measure: (text, style) => {
+			applyTextStyle(mc, style);
+			let {
+				actualBoundingBoxAscent,
+				actualBoundingBoxDescent,
+				actualBoundingBoxLeft,
+				actualBoundingBoxRight,
+				fontBoundingBoxAscent,
+				fontBoundingBoxDescent,
+				width,
+			} = mc.measureText(text);
 
-    blocks = blocks.filter(b => b.c.length > 0);
+			return {
+				actualBoundingBoxAscent,
+				actualBoundingBoxDescent,
+				actualBoundingBoxLeft,
+				actualBoundingBoxRight,
+				fontBoundingBoxAscent,
+				fontBoundingBoxDescent,
+				width,
+			};
+		},
+		loadImage,
+	});
 
-    let maxy = 0;
-    let cmds = [];
-    for (let b of blocks) {
-        if (b.h) maxy = Math.max(maxy, b.y + b.h);
-        //cmds.push({x:b.x, y:b.y, w:b.w, h:b.h, style: b.style, type: 'bg'})
-        cmds = cmds.concat(b.c.map(x => ({ ...x, x: x.x + b.x, h:b.h })));
-    }
-    
+	blocks = blocks.filter((b) => b.c.length > 0);
 
-    return {
-        draw: (c) => {
-            c.strokeStyle = "red";
-            c.lineWidth = 1;
+	let maxy = 0;
+	let cmds = [];
+	for (let b of blocks) {
+		if (b.h) maxy = Math.max(maxy, b.y + b.h);
+		//cmds.push({x:b.x, y:b.y, w:b.w, h:b.h, style: b.style, type: 'bg'})
+		cmds = cmds.concat(b.c.map((x) => ({ ...x, x: x.x + b.x, h: b.h })));
+	}
 
-            
-            if (false) {
-                c.strokeStyle = "blue";
-                c.lineWidth = 1;
-                c.strokeRect(x, y, width, maxy - y);
-            }
+	/**
+	 * @param {CanvasRenderingContext2D} c
+	 */
+	function draw(c) {
+		c.strokeStyle = "red";
+		c.lineWidth = 1;
 
-            //console.log('CMDS', cmds);
-            for (let cmd of cmds) {
-                //console.log("CMD", cmd);
-                if ( cmd.type == "bg" ) {
-                    applyBackgroundStyle(c, cmd.style, 'background');
-                    c.fillRect(cmd.x, cmd.y, cmd.w, cmd.h);
+		if (false) {
+			c.strokeStyle = "blue";
+			c.lineWidth = 1;
+			c.strokeRect(x, y, width, maxy - y);
+		}
 
-                } else {
-                    applyBackgroundStyle(c, cmd.style, 'background');
-                    c.fillRect(cmd.x, cmd.y - cmd.ts.fontBoundingBoxAscent, cmd.ts.width, cmd.ts.fontBoundingBoxDescent + cmd.ts.fontBoundingBoxAscent);
+		//console.log('CMDS', cmds);
+		for (let cmd of cmds) {
+			//console.log("CMD", cmd);
+			if (cmd.type == "bg") {
+				applyBackgroundStyle(c, cmd.style, "background");
+				c.fillRect(cmd.x, cmd.y, cmd.w, cmd.h);
+			} else {
+				applyBackgroundStyle(c, cmd.style, "background");
+				c.fillRect(
+					cmd.x,
+					cmd.y - cmd.ts.fontBoundingBoxAscent,
+					cmd.ts.width,
+					cmd.ts.fontBoundingBoxDescent + cmd.ts.fontBoundingBoxAscent,
+				);
 
-                    if (cmd.style['border-bottom-width']) {
-                        applyBackgroundStyle(c, cmd.style, 'border-bottom');
-                        c.fillRect(cmd.x, cmd.y + cmd.ts.fontBoundingBoxDescent, cmd.ts.width, -2)
-                    }
+				if (cmd.style["border-bottom-width"]) {
+					applyBackgroundStyle(c, cmd.style, "border-bottom");
+					c.fillRect(
+						cmd.x,
+						cmd.y + cmd.ts.fontBoundingBoxDescent,
+						cmd.ts.width,
+						-2,
+					);
+				}
 
-                    applyTextStyle(c, cmd.style);
+				applyTextStyle(c, cmd.style);
 
-                    if (cmd.path) {
-                        c.save();
-                        c.translate(cmd.x, cmd.y);
-                        c.translate(0, -cmd.ts.width*0.9 );
-                        c.scale(1/cmd.width*cmd.ts.width, 1/cmd.width*cmd.ts.width);
-                        c.scale(cmd.scale,cmd.scale);
+				if (cmd.path) {
+					c.save();
+					c.translate(cmd.x, cmd.y);
+					c.translate(0, -cmd.ts.width * 0.9);
+					c.scale(
+						(1 / cmd.width) * cmd.ts.width,
+						(1 / cmd.width) * cmd.ts.width,
+					);
+					c.scale(cmd.scale, cmd.scale);
 
-                        //c.scale(1.3, 1.3);
-                        c.lineWidth = cmd.style["line-width"] ? parseFloat(cmd.style["line-width"]) : 1
-                        c.strokeStyle = "#000000"
-                        c.fill(new Path2D(cmd.path));
-                        c.stroke(new Path2D(cmd.path));
-                        c.restore();
-                    }
-                    else
-                        c.fillText(cmd.text, cmd.x, cmd.y);
+					//c.scale(1.3, 1.3);
+					c.lineWidth = cmd.style["line-width"]
+						? parseFloat(cmd.style["line-width"])
+						: 1;
+					c.strokeStyle = "#000000";
+					c.fill(new Path2D(cmd.path));
+					c.stroke(new Path2D(cmd.path));
+					c.restore();
+				} else if (cmd.img) {
+					if (typeof cmd.img == "string") {
+						console.log("Couldnt load image: " + cmd);
+					} else {
+						c.drawImage(
+							cmd.img,
+							cmd.x,
+							cmd.y - cmd.height,
+							cmd.width,
+							cmd.height,
+						);
+					}
+				} else {
+					c.fillText(cmd.text, cmd.x, cmd.y);
+				}
 
-                    if (cmd.style['text-decoration'] == 'underline') {
-                        c.fillRect(cmd.x, cmd.y + cmd.ts.fontBoundingBoxDescent, cmd.ts.width, -1)
-                    }
+				if (cmd.style["text-decoration"] == "underline") {
+					c.fillRect(
+						cmd.x,
+						cmd.y + cmd.ts.fontBoundingBoxDescent,
+						cmd.ts.width,
+						-1,
+					);
+				}
+			}
+		}
+	}
 
-                }
-            }
-        },
-        height: maxy - y
-    }
+	return {
+		draw: draw,
+		waitForAllImages: async () => {
+			for (let cmd of cmds) {
+				if (!cmd.img) continue;
+				if (typeof cmd.img == "string") continue;
+				if (cmd.img.complete) continue;
+				let p = new Promise((res) => {
+					cmd.img.onload = () => res();
+				});
+				await p;
+			}
+		},
+		height: maxy - y,
+	};
 }
 
 function draw(c, html, mc, style, argz) {
-    go(html, mc, style, argz).draw(c);
+	go(html, mc, style, argz).draw(c);
 }
 
 module.exports = {
-    draw,
-    go
+	draw,
+	go,
 };

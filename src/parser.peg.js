@@ -51,4 +51,4 @@ style = f:StyleElement e:(';' ws StyleElement)* {
 StyleElement = k:$([a-z-]+) ':' ws v:$([^;]*) { return [k,v]}
 
 
-`
+`;

@@ -1,5 +1,3 @@
-
-
 let html = `
 Begin
 <h1 fontsize=20 checked fontface="Ariel" align="right">Hello<br />Goodbye</h1>
@@ -9,8 +7,7 @@ Extra Text
 Four<font size="26" style="font-size: 26">Five</font>Six <br />
 `;
 
-
-html +=  `
+html += `
 <br />
 <hr />
 If you could let <u>me</u> <i>inside</i> your <b>heart</b>.
@@ -22,15 +19,16 @@ Where you decide to stay</u>.
 `;
 
 let examples = [
-        html, 
-        '<h1>po<font size="5">o</font>ja po<font size="1">o</font>ja</h1>Paint <span style="background-color: #ff0000">the town</span> red.<hr color="#ff0000" />',
-        `
+	html,
+	'<h1>po<font size="5">o</font>ja po<font size="1">o</font>ja</h1>Paint <span style="background-color: #ff0000">the town</span> red.<hr color="#ff0000" />',
+	`
 <p><b>Trigger: </b>
 Critical success or failure when casting a spell.</p><div style="font-size: 0.5em">&nbsp;</div>
 <p>Seek a random spell you're able to cast. You may (must on fail) cast that spell instead. If you do, study it.</p>
 <div style="font-size: 0.5em">&nbsp;</div><small style="font-size:8pt"><b>Requires:</b> Mystic Talents.</small>`,
-
-    ];
+	`<h1>Hi</h1><img width=200 height=200 src="https://i.imgur.com/XKNcyGe.png"/><h1>Bye</h1>`,
+	`Over<br/>Hi<img width=20 height=20 src="https://i.imgur.com/XKNcyGe.png"/>Bye<br />Under`,
+];
 
 /*
 html = `
@@ -42,19 +40,17 @@ Four<span style="font-size: 40">Fi<br/>ve</span>Six
 `;
 */
 
-
-let go = require('./index');
-let crt = require('canvas-rich-text');
+let go = require("./index");
+let crt = require("canvas-rich-text");
 console.log(crt);
-let {
-    drawArrangedText,
-    arrangeBlock,
-    parseHtmlString,
-} = crt;
+let { drawArrangedText, arrangeBlock, parseHtmlString } = crt;
 
 let size = 12;
 
-let lol = (html, id=0) => `<div style="width: 1210px; height: 400px; border: 1px solid black">
+let lol = (
+	html,
+	id = 0,
+) => `<div style="width: 1210px; height: 400px; border: 1px solid black">
 <canvas
     id="${id}a" height=800 width=800 
     style="display: inline-block; height: 400px; width: 400px;"
@@ -72,59 +68,66 @@ style = "display: inline-block; height: 400px; width: 400px;"
     ></canvas >
 </div >`;
 
+let main = async () => {
+	document.getElementById("stuff").innerHTML = "";
+	for (let id = 0; id < examples.length; ++id) {
+		let ht = examples[id];
+		console.log(id, ht);
+		let x = document.createElement("div");
+		x.innerHTML = lol(ht, id);
+		document.getElementById("stuff").appendChild(x);
 
-let main = () => {
-    document.getElementById("stuff").innerHTML = '';
-        for ( let id = 0; id < examples.length; ++id ) {
-            let ht = examples[id];
-            console.log(id,ht);
-            let x = document.createElement("div");
-            x.innerHTML = lol(ht, id);
-            document.getElementById("stuff").appendChild(x);
+		let cm = document.getElementById("" + id + "a");
+		let mc = cm.getContext("2d");
+		mc.fillStyle = "#cceeff";
+		mc.fillRect(0, 0, 1000, 1000);
+		mc.fillStyle = "#000000";
 
-            let cm = document.getElementById('' + id + 'a');
-            let mc = cm.getContext('2d');
-            mc.fillStyle = "#cceeff";
-            mc.fillRect(0, 0, 1000, 1000);
-            mc.fillStyle = "#000000";
+		mc.scale(2, 2);
+		mc.strokeRect(50, 50, 300, 300);
+		let loadImage = (url) => {
+			let i = new Image();
+			i.crossOrigin = "anonymous";
+			i.src = url;
+			return i;
+		};
 
-            mc.scale(2, 2);
-            mc.strokeRect(50, 50, 300, 300);
-            go(ht, mc, { 'font-size': size, 'font-family': 'Lato' }).draw(mc);
-            mc.scale(0.5, 0.5);
+		let r = go(
+			ht,
+			mc,
+			{ "font-size": size, "font-family": "Lato" },
+			{ loadImage },
+		);
+		await r.waitForAllImages();
+		r.draw(mc);
+		mc.scale(0.5, 0.5);
 
-            let ctx = document.getElementById('' + id + 'b').getContext("2d");
+		let ctx = document.getElementById("" + id + "b").getContext("2d");
 
-            ctx.fillStyle = "#eeffcc";
-            ctx.fillRect(0, 0, 1000, 1000);
-            ctx.fillStyle = "#000000";
-            ctx.scale(2, 2);
+		ctx.fillStyle = "#eeffcc";
+		ctx.fillRect(0, 0, 1000, 1000);
+		ctx.fillStyle = "#000000";
+		ctx.scale(2, 2);
 
-            crt.defaultStyle.fontFamily = 'Lato';
-            const tokens = parseHtmlString(ht.replace(/\n/g,' '), {
-                fontFamily: 'Lato',
-                fontSize: size,
-                width: 300,
-            });
-            let arrangedText = arrangeBlock(tokens);
-        
-            ctx.strokeRect(50, 50, 300, 300);
-            drawArrangedText(
-                arrangedText,
-                ctx,
-                50,
-                50
-            );
-            ctx.scale(0.5, 0.5);
+		crt.defaultStyle.fontFamily = "Lato";
+		const tokens = parseHtmlString(ht.replace(/\n/g, " "), {
+			fontFamily: "Lato",
+			fontSize: size,
+			width: 300,
+		});
+		let arrangedText = arrangeBlock(tokens);
 
-        }
+		ctx.strokeRect(50, 50, 300, 300);
+		drawArrangedText(arrangedText, ctx, 50, 50);
+		ctx.scale(0.5, 0.5);
+	}
 };
 
-
-document.addEventListener('DOMContentLoaded', () => {
-    document.fonts.load('12pt Lato')
-        .then(() => document.fonts.load('bold 12pt Lato'))
-        .then(() => document.fonts.load('black 12pt Lato'))
-        .then(() => document.fonts.load('italic 12pt Lato'))
-        .then(main);
+document.addEventListener("DOMContentLoaded", () => {
+	document.fonts
+		.load("12pt Lato")
+		.then(() => document.fonts.load("bold 12pt Lato"))
+		//.then(() => document.fonts.load('black 12pt Lato'))
+		.then(() => document.fonts.load("italic 12pt Lato"))
+		.then(main);
 });

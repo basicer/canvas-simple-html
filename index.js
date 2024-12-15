@@ -1,1 +1,1 @@
-module.exports = require('./src/block').go;
+module.exports = require("./src");
