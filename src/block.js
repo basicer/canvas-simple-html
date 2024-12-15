@@ -413,6 +413,10 @@ function go(html, mc, style, { x, y, width, loadImage } = {}) {
 			for (let cmd of cmds) {
 				if (!cmd.img) continue;
 				if (typeof cmd.img == "string") continue;
+				if (cmd.img instanceof Promise) {
+					cmd.img = await cmd.img;
+					continue;
+				}
 				if (cmd.img.complete) continue;
 				let p = new Promise((res) => {
 					cmd.img.onload = () => res();
